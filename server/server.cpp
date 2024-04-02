@@ -127,19 +127,17 @@ namespace {
         int      yes       = 1;
         int      result    = 0;
         addrinfo *servinfo = nullptr; 
+        addrinfo internal_hints {0};
 
         if (!hints) {
-            addrinfo internal_hints {0};
-
             internal_hints.ai_family   = AF_UNSPEC;   // Any IP (IPv4 or IPv6)
             internal_hints.ai_socktype = SOCK_STREAM; // Stream connection
             internal_hints.ai_flags    = AI_PASSIVE;  // Use server IP
-            
-            hints = &internal_hints; 
+            result = getaddrinfo(nullptr, port, &internal_hints, &servinfo); // Get address info of host
+        } else {
+            result = getaddrinfo(nullptr, port, hints, &servinfo); // Get address info of host
         }
 
-        result = getaddrinfo(nullptr, port, hints, &servinfo); // Get address info of host
-                                                               //
         if (result != 0 || servinfo == nullptr) {
             std::string error = "Error in getaddrinfo:";
             std::cerr << error << '\n';
