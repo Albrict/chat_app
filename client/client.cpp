@@ -1,7 +1,3 @@
-/*
-** client.c -- a stream socket client demo
-*/
-
 #include <stdexcept>
 #include <stdio.h>
 #include <unistd.h>
@@ -13,6 +9,7 @@
 #include <arpa/inet.h>
 
 #include "client.hpp"
+#include "../utils/network_utils.hpp"
 
 using namespace Chat;
 
@@ -25,7 +22,7 @@ Client::Client(const int win_width, const int win_height, const char *win_title)
     : m_window(win_width, win_height, win_title)
 {
     const char *connection_error = "Can't connect to the server!\n";
-    m_connect_fd = getConnectionSocket("shabaka-pc", "3490");
+    m_connect_fd = NetworkUtils::getConnectionSocket("shabaka-pc", "3490");
     if (m_connect_fd < 0)
         throw std::runtime_error(connection_error);
     
@@ -60,65 +57,5 @@ void Client::connectionReadEventCallback(FL_SOCKET fd, void *data)
     } else {
         // Received some data
         printf("Received data: %s\n", m_buffer.c_str());
-    }
-}
-
-namespace {
-    int getConnectionSocket(const char *host, const char *port)
-    {
-        int  connect_fd       = 0; 
-        int  result           = 0;
-        bool connect_success  = false;
-
-        struct addrinfo hints {}; 
-        struct addrinfo *servinfo = nullptr;
-
-        hints.ai_family = AF_UNSPEC;
-        hints.ai_socktype = SOCK_STREAM;
-        
-        result = getaddrinfo(host, port, &hints, &servinfo);
-        if (result < 0 || servinfo == nullptr) {
-            fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(result));
-            return -1;
-        }
-
-        // loop through all the results and connect to the first we can
-        
-        auto tmp = servinfo;
-        while(tmp) {
-            connect_fd = socket(tmp->ai_family, tmp->ai_socktype, tmp->ai_protocol);
-            if (connect_fd < 0){
-                perror("client: socket");
-                tmp = tmp->ai_next;
-                continue;
-            }
-            
-            result = connect(connect_fd, tmp->ai_addr, tmp->ai_addrlen);
-
-            if (result < 0) {
-                close(connect_fd);
-                perror("client: connect");
-                tmp = tmp->ai_next;
-                continue;
-            }
-
-            connect_success = true;
-            break;
-        }
-        freeaddrinfo(servinfo); // all done with this structure
-        if (connect_success)
-            return connect_fd;
-        else
-            return -1;
-    }
-
-    // get sockaddr, IPv4 or IPv6:
-    void *get_in_addr(struct sockaddr *sa)
-    {
-        if (sa->sa_family == AF_INET) {
-            return &(((struct sockaddr_in*)sa)->sin_addr);
-        }
-
-        return &(((struct sockaddr_in6*)sa)->sin6_addr);
     }
 }
