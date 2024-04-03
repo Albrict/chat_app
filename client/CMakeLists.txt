@@ -17,6 +17,8 @@ execute_process(
 file(GLOB_RECURSE sources CONFIGURE_DEPENDS "*.cpp")
 
 # Our Project
+target_include_directories(utils PRIVATE ../utils/)
+
 add_executable(${PROJECT_NAME} ${sources})
-target_link_libraries(${PROJECT_NAME} ${ld_flags_var})
+target_link_libraries(${PROJECT_NAME} ${ld_flags_var} utils)
 add_compile_options(${PROJECT_NAME} "${${cxx_flags_var}}")
