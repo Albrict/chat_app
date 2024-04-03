@@ -14,7 +14,9 @@ execute_process(
     OUTPUT_VARIABLE ld_flags_var
 )
 
+file(GLOB_RECURSE sources CONFIGURE_DEPENDS "*.cpp")
+
 # Our Project
-add_executable(${PROJECT_NAME} main.cpp)
+add_executable(${PROJECT_NAME} ${sources})
 target_link_libraries(${PROJECT_NAME} ${ld_flags_var})
 add_compile_options(${PROJECT_NAME} "${${cxx_flags_var}}")
