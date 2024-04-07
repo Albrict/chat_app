@@ -4,6 +4,8 @@
 #include <memory>
 
 class Fl_Menu_Bar;
+class Fl_Multiline_Input;
+class Fl_Button;
 
 namespace Chat {
     class OptionsWindow;
@@ -17,10 +19,14 @@ namespace Chat {
     private:
         static void connectionReadEventCallback(FL_SOCKET fd, void *data);
         static void settingsButtonCallback(Fl_Widget *widget, void *data);
+        static void sendMessageCallback(Fl_Widget *widget, void *data);
 
         [[nodiscard]] Fl_Menu_Bar *createMenuBar(const int x, const int y, const int width, const int height);
+        [[nodiscard]] Fl_Multiline_Input *createMessageInput(const int x, const int y, const int width, const int height);
+        [[nodiscard]] Fl_Button *createSendMessageButton(const int x, const int y, const int width, const int height);
     private:
         Fl_Double_Window                  m_window;
+        Fl_Multiline_Input                *m_message_input = nullptr;
         std::unique_ptr<OptionsWindow>    m_options_window {};
         int                               m_connect_fd = 0;
     };

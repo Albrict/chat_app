@@ -1,4 +1,5 @@
 #include <FL/Fl_Widget.H>
+#include <iostream>
 #include <stdio.h>
 #include <unistd.h>
 #include <netdb.h>
@@ -9,6 +10,8 @@
 
 #include <FL/Fl_Menu_Bar.H>
 #include <FL/Fl_Button.H>
+#include <FL/Fl_Multiline_Input.H>
+
 #include <stdexcept>
 
 #include "client.hpp"
@@ -17,26 +20,24 @@
 
 using namespace Chat;
 
-namespace {
-    Fl_Menu_Bar *createMenuBar(const int x, const int y, const int width, const int height, Client &client); 
-}
-
 Client::Client(const int win_width, const int win_height, const char *win_title)
     : m_window(win_width, win_height, win_title)
 {
-//    const char *connection_error = "Can't connect to the server!\n";
-//    m_connect_fd = NetworkUtils::getConnectionSocket("shabaka-pc", "3490");
-//    if (m_connect_fd < 0)
-//        throw std::runtime_error(connection_error);
-    
-//    Fl::add_fd(m_connect_fd, FL_READ, connectionReadEventCallback, nullptr);
+    const char *connection_error = "Can't connect to the server!\n";
+    m_connect_fd = NetworkUtils::getConnectionSocket("shabaka-pc", "3490");
+    if (m_connect_fd < 0)
+        throw std::runtime_error(connection_error);
+  
+    Fl::add_fd(m_connect_fd, FL_READ, connectionReadEventCallback, nullptr);
     m_window.resizable(&m_window);
     m_window.size_range(win_width, win_height);
 
     m_window.begin();
     {
         const int bar_height = 20;
-        auto bar = createMenuBar(0, 0, win_width, bar_height);
+        auto      bar        = createMenuBar(0, 0, win_width, bar_height);
+        auto      button     = createSendMessageButton(700, 500, 100, 10);
+        m_message_input      = createMessageInput(500, 500, 200, 100);
     }
     m_window.end();
     m_window.show();
@@ -81,6 +82,21 @@ Fl_Menu_Bar *Client::createMenuBar(const int x, const int y, const int width, co
     return bar;
 }
 
+Fl_Multiline_Input *Client::createMessageInput(const int x, const int y, const int width, const int height)
+{
+    auto input = new Fl_Multiline_Input(x, y, width, height); 
+    return input;
+}
+
+
+
+Fl_Button *Client::createSendMessageButton(const int x, const int y, const int width, const int height)
+{
+    const char *button_label = "Send message";
+    auto button = new Fl_Button(x, y, width, height, button_label); 
+    button->callback(sendMessageCallback, this);
+    return button;
+}
 
 void Client::settingsButtonCallback(Fl_Widget *widget, void *data)
 {
@@ -98,5 +114,15 @@ void Client::settingsButtonCallback(Fl_Widget *widget, void *data)
             client->m_options_window->show();
         else 
             client->m_options_window->hide();
+    }
+}
+
+void Client::sendMessageCallback(Fl_Widget *widget, void *data)
+{
+    auto client  = static_cast<Client*>(data);
+    auto message = client->m_message_input->value();
+    bool result  = NetworkUtils::sendAllData(client->m_connect_fd, message);
+    if (!result) {
+        std::cerr << "Can't send message!\n";
     }
 }
