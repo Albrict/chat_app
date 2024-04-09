@@ -8,7 +8,6 @@ namespace NetworkUtils {
     public:
         explicit DataBuffer(const std::size_t size)
             : m_size(size), m_data(new std::byte[size]()) {}
-
         DataBuffer(const DataBuffer &other)
             : m_size(other.m_size), m_data(new std::byte[other.m_size]()) 
         { std::memcpy(m_data, other.m_data, other.m_size); }

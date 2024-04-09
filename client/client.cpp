@@ -119,13 +119,12 @@ void Client::settingsButtonCallback(Fl_Widget *widget, void *data)
 
 void Client::sendMessageCallback(Fl_Widget *widget, void *data)
 {
-    std::string buffer;
-    buffer.resize(256);
-    auto client  = static_cast<Client*>(data);
-    auto message = client->m_message_input->value();
-        
-    buffer = message;
-    bool result  = NetworkUtils::sendAllData(client->m_connect_fd, buffer);
+    auto client            = static_cast<Client*>(data);
+    auto message           = client->m_message_input->value();
+    auto packet_data       = reinterpret_cast<const std::byte*>(message);
+
+    NetworkUtils::Packet packet(strlen(message) + 1, NetworkUtils::Packet::Type::CLIENT, packet_data);
+    bool result  = NetworkUtils::sendPacket(client->m_connect_fd, packet);
     if (!result) {
         std::cerr << "Can't send message!\n";
     }

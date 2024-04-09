@@ -64,7 +64,7 @@ void Server::checkConnections()
             if (m_pollfds[i].fd == m_listen_fd) {
                 handleConnectionRequest();
             } else  {
-                auto packet = NetworkUtils::getPacket(m_pollfds[i].fd); 
+                NetworkUtils::Packet packet(m_pollfds[i].fd); 
                 if (packet.isEmpty()) {
                     close(m_pollfds[i].fd);
                     m_pollfds.erase(m_pollfds.begin() + i);
