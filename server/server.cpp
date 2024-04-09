@@ -1,4 +1,5 @@
 #include "server.hpp"
+#include <boost/serialization/access.hpp>
 #include <iostream>
 #include <stdexcept>
 #include <stdio.h>
@@ -22,6 +23,7 @@ Server::Server(const char *port)
         const char *err = "Fatal error: can't get listen socket";
         throw std::runtime_error(err);
     }
+
     const int result = listen(m_listen_fd, SOMAXCONN); 
     if (result < 0) {
         const char *err = "listen";
@@ -29,7 +31,6 @@ Server::Server(const char *port)
         throw std::runtime_error(err);
     }
     m_address.resize(INET6_ADDRSTRLEN);
-    m_buffer.resize(256);
 }
 
 Server::~Server()
@@ -63,8 +64,8 @@ void Server::checkConnections()
             if (m_pollfds[i].fd == m_listen_fd) {
                 handleConnectionRequest();
             } else  {
-                auto data = handleDataFromClient(m_pollfds[i]); 
-                if (data == nullptr) {
+                auto packet = NetworkUtils::getPacket(m_pollfds[i].fd); 
+                if (packet.isEmpty()) {
                     close(m_pollfds[i].fd);
                     m_pollfds.erase(m_pollfds.begin() + i);
                 }
@@ -90,25 +91,7 @@ bool Server::handleConnectionRequest()
         m_pollfds.push_back(NetworkUtils::createPollfd(m_connection_fd, POLLIN));
         std::cout << connection_message;
         std::cout << m_address << '\n';
-        send(m_connection_fd, "Hello, world!", 13, 0);
+        auto result = NetworkUtils::sendAllData(m_connection_fd, "Hello, world!");
         return true;
-    }
-}
-
-const char *Server::handleDataFromClient(const pollfd &pollfd_connect)
-{
-    const int n_bytes   = recv(pollfd_connect.fd, m_buffer.data(), m_buffer.size(), 0); 
-    
-    if (n_bytes <= 0) {
-        // Got connection error or closed by client
-        if (n_bytes == 0)
-            printf("connection closed on socket:%d\n", pollfd_connect.fd);
-        else 
-            perror("recv");
-        return nullptr;
-    } else {
-        // Received some data
-        printf("Received data: %s\n", m_buffer.c_str());
-        return m_buffer.c_str();
     }
 }
