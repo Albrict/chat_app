@@ -151,3 +151,24 @@ bool NetworkUtils::sendAllData(const int connection_fd, const std::string &buffe
     }
     return true;
 }
+
+NetworkUtils::Packet NetworkUtils::getPacket(const int client_fd)
+{
+    std::byte *data = new std::byte[256]();
+    const int n_bytes = recv(client_fd, data, 256, 0); 
+    if (n_bytes <= 0) {
+        // Got connection error or closed by client
+        if (n_bytes == 0)
+            printf("Client closed connection on socket:%d\n", client_fd);
+        else 
+            perror("recv");
+        return Packet(1);
+    } else {
+        Packet packet(256);
+        packet.setData(data); 
+
+        // Received some data
+        printf("Received data: %s\n", packet.asChars());
+        return packet; 
+    }
+}

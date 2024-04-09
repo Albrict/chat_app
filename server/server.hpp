@@ -3,6 +3,7 @@
 #include <poll.h>
 #include <vector>
 #include <string>
+#include "../utils/network_utils.hpp"
 
 namespace Chat {
     class Server {
@@ -15,14 +16,14 @@ namespace Chat {
         void checkConnections();
         void clearDisconnectQueue();
         bool handleConnectionRequest();
-        const char *handleDataFromClient(const pollfd &pollfd_connect);
     private:
-        int                 m_listen_fd        {0};
-        int                 m_connection_fd    {0};
-        socklen_t           m_address_length   {0};
-        sockaddr_storage    m_connection_info  {0};
-        std::vector<pollfd> m_pollfds          {};
-        std::string         m_address          {};
-        std::string         m_buffer           {};
+        static const int           packet_size        = 256;
+        int                        m_listen_fd        {};
+        int                        m_connection_fd    {};
+        socklen_t                  m_address_length   {};
+        sockaddr_storage           m_connection_info  {};
+        std::vector<pollfd>        m_pollfds          {};
+        NetworkUtils::DataBuffer   m_buffer           {packet_size};
+        std::string                m_address          {};
     };
 }
