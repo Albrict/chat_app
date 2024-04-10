@@ -1,8 +1,11 @@
 #include "network_utils.hpp"
+#include <cstddef>
+#include <cstdint>
 #include <iostream>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <array>
 
 int NetworkUtils::getListenSocket(const char *port, const addrinfo *hints) noexcept
 {
@@ -121,18 +124,19 @@ void *NetworkUtils::get_in_addr(sockaddr *sa) noexcept
 }
 
 
-std::string_view NetworkUtils::serializeUnsignedInt(const unsigned int num) noexcept
+void NetworkUtils::serializeUnsignedInt(const unsigned int num, std::byte *buffer) noexcept
 {
-    uint32_t converted = htonl(num); 
-    std::string_view data = reinterpret_cast<char*>(&converted);    
-    return data;
+    uint32_t   converted  = htonl(num); 
+    const auto byte_array = reinterpret_cast<std::byte*>(&converted);    
+    memcpy(buffer, byte_array, sizeof(uint32_t));
 }
 
-uint32_t NetworkUtils::deserializeUnsignedInt(const char *buffer) noexcept
+uint32_t NetworkUtils::deserializeUnsignedInt(const std::byte *data) noexcept
 {
-    uint32_t converted = 0;
-    uint32_t size = sizeof(buffer);
-    return 0;  
+    uint32_t host_value = 0;
+    memcpy(&host_value, data, sizeof(host_value));
+    host_value = ntohl(host_value);
+    return host_value;  
 }
 
 bool NetworkUtils::sendAllData(const int connection_fd, const std::string &buffer) noexcept
@@ -152,23 +156,19 @@ bool NetworkUtils::sendAllData(const int connection_fd, const std::string &buffe
     return true;
 }
 
-NetworkUtils::Packet NetworkUtils::getPacket(const int client_fd)
+bool NetworkUtils::sendPacket(const int connection_fd, const Packet &packet)
 {
-    std::byte *data = new std::byte[256]();
-    const int n_bytes = recv(client_fd, data, 256, 0); 
-    if (n_bytes <= 0) {
-        // Got connection error or closed by client
-        if (n_bytes == 0)
-            printf("Client closed connection on socket:%d\n", client_fd);
-        else 
-            perror("recv");
-        return Packet(1);
-    } else {
-        Packet packet(256);
-        packet.setData(data); 
-
-        // Received some data
-        printf("Received data: %s\n", packet.asChars());
-        return packet; 
+    int bytes_sent = 0;        
+    int result     = 0;
+    int bytes_left = packet.size();
+    while (bytes_sent < packet.size()) {
+        result = send(connection_fd, &packet[bytes_sent], bytes_left, 0);
+        if (result < -1) {
+            return false;
+        } else {
+            bytes_sent += result;
+            bytes_left -= result;
+        }
     }
+    return true;
 }
