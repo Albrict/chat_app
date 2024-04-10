@@ -1,29 +1,29 @@
 #pragma once
-#include "data_buffer.hpp"
-#include <memory>
-#include <string>
+#include <cstdint>
+#include <vector>
 
 namespace NetworkUtils {
     class Packet final {
     public:
-        static constexpr std::size_t  packet_header_size = 8;
+        static constexpr std::size_t  packet_header_size   = sizeof(uint32_t) * 2;
+        static constexpr std::size_t  packet_header_stride = sizeof(uint32_t);
+
         enum Type : uint32_t {
             SERVER = 1,
-            CLIENT
         };
-
-        explicit Packet(const size_t buffer_size, const Type type, const std::byte *buffer_data);
+        
+        explicit Packet(const std::vector<std::byte> &buffer, const uint32_t type);
         explicit Packet(const int connect_fd);
         explicit Packet(const Packet &other)
         {
-            *m_buffer     = *other.m_buffer; 
-            m_packet_size = other.m_packet_size;
+            m_buffer       = other.m_buffer; 
+            m_packet_size  = other.m_packet_size;
             m_is_empty     = other.m_is_empty;
         }
         
         Packet(Packet &&other) noexcept
         {
-            m_buffer.swap(other.m_buffer);
+            m_buffer      = std::move(other.m_buffer);
             m_is_empty    = other.m_is_empty;
             m_packet_size = other.m_packet_size;
         }
@@ -31,54 +31,38 @@ namespace NetworkUtils {
         ~Packet() = default;
 
         Packet &operator=(const Packet &rhs) 
-        {
-            return *this = Packet(rhs);
-        }
+        { return *this = Packet(rhs); }
         
         Packet& operator=(Packet &&rhs) noexcept
-        {
-            m_buffer.swap(rhs.m_buffer);
-            return *this;
-        }
+        { return *this = Packet(std::move(rhs)); }
 
-        std::byte &operator[](const std::size_t i) noexcept
-        {
-            return m_buffer->data()[i];
-        }
+        [[nodiscard]] std::byte &operator[](const std::size_t i) noexcept
+        { return m_buffer[i]; }
         
-        const std::byte &operator[](const std::size_t i) const noexcept
-        {
-            return m_buffer->data()[i];
-        }
+        [[nodiscard]] const std::byte &operator[](const std::size_t i) const noexcept
+        { return m_buffer[i]; }
 
-        void setData(std::byte *data)
-        { memcpy(m_buffer->data(), data, m_buffer->size()); m_is_empty = false; }
-
-        std::byte *asBytes()
-        { return m_buffer->data() + packet_header_size; }
+        [[nodiscard]] const std::byte *asBytes() const noexcept
+        { return m_buffer.data() + packet_header_size; }
         
-        std::string asString()
-        { return reinterpret_cast<const char*>(m_buffer->data() + packet_header_size); }
+        [[nodiscard]] const char *asChars() const noexcept
+        { return reinterpret_cast<const char*>(m_buffer.data() + packet_header_size); }
         
-        const char *asChars()
-        {
-            return reinterpret_cast<const char*>(m_buffer->data() + packet_header_size);
-        }
-        
-        bool isEmpty()
+        [[nodiscard]] bool isEmpty() const noexcept
         { return m_is_empty; }
 
-        uint32_t size() const noexcept
-        {
-            return m_packet_size;
-        }
+        [[nodiscard]] uint32_t size() const noexcept
+        { return m_packet_size; }
+        
+        [[nodiscard]] Type type() const noexcept
+        { return m_packet_type; }
+        
 
-        uint32_t packetSize();
-        Type     type();
-
+        bool send(const int connection_fd);
     private:
-        std::unique_ptr<DataBuffer> m_buffer {};
+        std::vector<std::byte>      m_buffer {};
         std::size_t  m_packet_size  = 0;
+        Type         m_packet_type  = Type::SERVER;
         bool         m_is_empty     = true;
     };
 }

@@ -5,7 +5,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <array>
+#include <cstring>
 
 int NetworkUtils::getListenSocket(const char *port, const addrinfo *hints) noexcept
 {
@@ -137,38 +137,4 @@ uint32_t NetworkUtils::deserializeUnsignedInt(const std::byte *data) noexcept
     memcpy(&host_value, data, sizeof(host_value));
     host_value = ntohl(host_value);
     return host_value;  
-}
-
-bool NetworkUtils::sendAllData(const int connection_fd, const std::string &buffer) noexcept
-{
-    int bytes_sent = 0;        
-    int result     = 0;
-    int bytes_left = buffer.size();
-    while (bytes_sent < buffer.size()) {
-        result = send(connection_fd, &buffer[bytes_sent], bytes_left, 0);
-        if (result < -1) {
-            return false;
-        } else {
-            bytes_sent += result;
-            bytes_left -= result;
-        }
-    }
-    return true;
-}
-
-bool NetworkUtils::sendPacket(const int connection_fd, const Packet &packet)
-{
-    int bytes_sent = 0;        
-    int result     = 0;
-    int bytes_left = packet.size();
-    while (bytes_sent < packet.size()) {
-        result = send(connection_fd, &packet[bytes_sent], bytes_left, 0);
-        if (result < -1) {
-            return false;
-        } else {
-            bytes_sent += result;
-            bytes_left -= result;
-        }
-    }
-    return true;
 }
