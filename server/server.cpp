@@ -68,6 +68,8 @@ void Server::checkConnections()
                 if (packet.isEmpty()) {
                     close(m_pollfds[i].fd);
                     m_pollfds.erase(m_pollfds.begin() + i);
+                } else {
+                    handlePacket(packet, m_pollfds[i].fd);
                 }
             }
         } else { 
@@ -91,7 +93,18 @@ bool Server::handleConnectionRequest()
         m_pollfds.push_back(NetworkUtils::createPollfd(m_connection_fd, POLLIN));
         std::cout << connection_message;
         std::cout << m_address << '\n';
-        auto result = NetworkUtils::sendAllData(m_connection_fd, "Hello, world!");
         return true;
+    }
+}
+
+void Server::handlePacket(const NetworkUtils::Packet &packet, const int sender_fd)
+{
+    if (packet.type() != NetworkUtils::Packet::Type::SERVER) {
+        for (const auto &clients : m_pollfds) {
+            if (clients.fd != m_listen_fd && clients.fd != sender_fd) {
+                NetworkUtils::Packet send_packet(std::move(packet));
+                send_packet.send(clients.fd);
+            }        
+        }
     }
 }

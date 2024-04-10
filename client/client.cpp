@@ -13,9 +13,11 @@
 #include <FL/Fl_Multiline_Input.H>
 
 #include <stdexcept>
+#include <vector>
 
 #include "client.hpp"
 #include "options_window.hpp"
+#include "../utils/packet.hpp"
 #include "../utils/network_utils.hpp"
 
 using namespace Chat;
@@ -55,19 +57,12 @@ int Client::run()
 
 void Client::connectionReadEventCallback(FL_SOCKET fd, void *data)
 {
-    std::string m_buffer;
-    m_buffer.resize(256);
-    const int n_bytes   = recv(fd, m_buffer.data(), m_buffer.size(), 0); 
-    
-    if (n_bytes <= 0) {
-        // Got connection error or closed by server 
-        if (n_bytes == 0)
-            printf("connection closed on socket:%d\n", fd);
-        else 
-            perror("recv");
+    NetworkUtils::Packet packet(fd); 
+    if (packet.isEmpty()) {
+        ;
     } else {
         // Received some data
-        printf("Received data: %s\n", m_buffer.c_str());
+        printf("Received data: %s\n", packet.asChars());
     }
 }
 
@@ -119,12 +114,12 @@ void Client::settingsButtonCallback(Fl_Widget *widget, void *data)
 
 void Client::sendMessageCallback(Fl_Widget *widget, void *data)
 {
-    auto client            = static_cast<Client*>(data);
-    auto message           = client->m_message_input->value();
-    auto packet_data       = reinterpret_cast<const std::byte*>(message);
-
-    NetworkUtils::Packet packet(strlen(message) + 1, NetworkUtils::Packet::Type::CLIENT, packet_data);
-    bool result  = NetworkUtils::sendPacket(client->m_connect_fd, packet);
+    auto client             = static_cast<Client*>(data);
+    auto message            = client->m_message_input->value();
+    auto message_as_bytes   = reinterpret_cast<std::byte*>(const_cast<char*>(message));
+    auto packet_data        = std::vector<std::byte>(message_as_bytes, message_as_bytes + strlen(message) + 1);
+    NetworkUtils::Packet packet(packet_data, 4);
+    bool result  = packet.send(client->m_connect_fd); 
     if (!result) {
         std::cerr << "Can't send message!\n";
     }
