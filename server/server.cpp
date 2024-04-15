@@ -99,6 +99,10 @@ bool Server::handleConnectionRequest()
 
 void Server::handlePacket(const NetworkUtils::Packet &packet, const int sender_fd)
 {
+    std::cout << "Packet size: " << packet.size() << '\n';
+    std::cout << "Packet type: " << packet.type() << '\n';
+    std::cout << "Packet data: " << packet.asChars() << '\n';
+    
     if (packet.type() != NetworkUtils::Packet::Type::SERVER) {
         for (const auto &clients : m_pollfds) {
             if (clients.fd != m_listen_fd && clients.fd != sender_fd) {

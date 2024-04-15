@@ -1,16 +1,14 @@
-#include <FL/Fl_Widget.H>
 #include <iostream>
-#include <stdio.h>
 #include <unistd.h>
 #include <netdb.h>
 #include <sys/types.h>
-#include <netinet/in.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
 #include <FL/Fl_Menu_Bar.H>
 #include <FL/Fl_Button.H>
 #include <FL/Fl_Multiline_Input.H>
+#include <FL/Fl_Text_Display.H>
 
 #include <stdexcept>
 #include <vector>
@@ -22,25 +20,73 @@
 
 using namespace Chat;
 
-Client::Client(const int win_width, const int win_height, const char *win_title)
-    : m_window(win_width, win_height, win_title)
+namespace {
+     
+    namespace Adjustments {
+        constexpr int padding = 20;
+    }
+
+    namespace Window {
+        const char    *title = "Chat client";
+        constexpr int width  = 512;
+        constexpr int height = 320; 
+    }
+
+    namespace MenuBar {
+        constexpr int x      = 0;
+        constexpr int y      = 0;
+        constexpr int width  = Window::width; 
+        constexpr int height = 20;
+    };
+    
+    namespace SendButton {
+        constexpr int height = 40;
+        constexpr int x      = Window::width / 1.5;
+        constexpr int y      = Window::height - height; 
+        constexpr int width  = Window::width - x;
+    }
+
+    namespace MessageInput {
+        constexpr int height = 40;
+        constexpr int x      = 0;
+        constexpr int y      = Window::height - height;
+        constexpr int width  = Window::width - SendButton::width; 
+    }
+
+    namespace MessageOutput {
+        constexpr int width  = Window::width - 20;
+        constexpr int height = SendButton::y - MenuBar::height;
+        constexpr int x      = 10;
+        constexpr int y      = MenuBar::height;
+    }
+}
+
+Client::Client()
+    : m_window(Window::width, Window::height, Window::title)
 {
     const char *connection_error = "Can't connect to the server!\n";
     m_connect_fd = NetworkUtils::getConnectionSocket("shabaka-pc", "3490");
     if (m_connect_fd < 0)
         throw std::runtime_error(connection_error);
-  
-    Fl::add_fd(m_connect_fd, FL_READ, connectionReadEventCallback, nullptr);
+    
+    Fl::add_fd(m_connect_fd, FL_READ, connectionReadEventCallback, this);
     m_window.resizable(&m_window);
-    m_window.size_range(win_width, win_height);
+    m_window.size_range(Window::width, Window::height);
 
     m_window.begin();
     {
-        const int bar_height = 20;
-        auto      bar        = createMenuBar(0, 0, win_width, bar_height);
-        auto      button     = createSendMessageButton(700, 500, 100, 10);
-        m_message_input      = createMessageInput(500, 500, 200, 100);
+        const int bar_height    = 20;
+        auto      bar           = createMenuBar(MenuBar::x, MenuBar::y, MenuBar::width, MenuBar::height);
+        auto      button        = createSendMessageButton(SendButton::x, SendButton::y, SendButton::width, SendButton::height);
+        auto      buffer        = new Fl_Text_Buffer;
+
+        m_message_output        = new Fl_Text_Display(MessageOutput::x, MessageOutput::y, MessageOutput::width, MessageOutput::height);
+        m_message_input         = createMessageInput(MessageInput::x, MessageInput::y, MessageInput::width, MessageInput::height);
+        m_output_buffer         = std::make_unique<std::vector<string_ptr>>();
+
+        m_message_output->buffer(buffer);
     }
+
     m_window.end();
     m_window.show();
 }
@@ -61,8 +107,12 @@ void Client::connectionReadEventCallback(FL_SOCKET fd, void *data)
     if (packet.isEmpty()) {
         ;
     } else {
-        // Received some data
-        printf("Received data: %s\n", packet.asChars());
+        auto client         = static_cast<Client*>(data);
+        auto message_output = client->m_message_output;
+        auto message        = std::make_unique<std::string>(packet.asString());
+        message->append("\n");
+        message_output->insert(message->c_str());
+        client->m_output_buffer->emplace_back(std::move(message));
     }
 }
 
@@ -83,14 +133,17 @@ Fl_Multiline_Input *Client::createMessageInput(const int x, const int y, const i
     return input;
 }
 
-
-
 Fl_Button *Client::createSendMessageButton(const int x, const int y, const int width, const int height)
 {
     const char *button_label = "Send message";
     auto button = new Fl_Button(x, y, width, height, button_label); 
     button->callback(sendMessageCallback, this);
     return button;
+}
+
+Fl_Text_Display *Client::createMessageDisplay(const int x, const int y, const int width, const int height)
+{
+    
 }
 
 void Client::settingsButtonCallback(Fl_Widget *widget, void *data)
