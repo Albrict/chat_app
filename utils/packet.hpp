@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace NetworkUtils {
@@ -48,6 +49,9 @@ namespace NetworkUtils {
         [[nodiscard]] const char *asChars() const noexcept
         { return reinterpret_cast<const char*>(m_buffer.data() + packet_header_size); }
         
+        [[nodiscard]] std::string asString() const noexcept
+        { return std::string(asChars()); }
+
         [[nodiscard]] bool isEmpty() const noexcept
         { return m_is_empty; }
 
