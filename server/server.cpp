@@ -1,5 +1,6 @@
 #include "server.hpp"
 #include <boost/serialization/access.hpp>
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
 #include <stdio.h>
@@ -11,13 +12,22 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <string>
+#include <chrono>
 
 #include "../utils/network_utils.hpp"
+#include "sha.hpp"
+
+namespace {
+    [[nodiscard]] std::string getSalt();
+    [[nodiscard]] bool sendNotificationPacket(const NetworkUtils::Packet::Type type, const int sender_fd);
+
+}
 
 using namespace Chat;
 
-Server::Server(const char *port)
+Server::Server(const char *port, std::unique_ptr<Database> database)
 {
+    m_database  = std::move(database);
     m_listen_fd = NetworkUtils::getListenSocket(port);
     if (m_listen_fd < 0) {
         const char *err = "Fatal error: can't get listen socket";
@@ -99,16 +109,59 @@ bool Server::handleConnectionRequest()
 
 void Server::handlePacket(const NetworkUtils::Packet &packet, const int sender_fd)
 {
-    std::cout << "Packet size: " << packet.size() << '\n';
-    std::cout << "Packet type: " << packet.type() << '\n';
-    std::cout << "Packet data: " << packet.asChars() << '\n';
-    
+    if (packet.type() == NetworkUtils::Packet::Type::SERVER_REGISTRATION) {
+        const char *err_msg = "Can't send a notification to client!\n";
+        NetworkUtils::LoginPacket login_packet(packet);
+
+        if (m_database->isUserExists(login_packet.nickname().c_str())) {
+            if (!sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_REGISTRATION_ALREADY_EXISTS, sender_fd))
+                std::cerr << err_msg;
+        } else { 
+            auto nickname = login_packet.nickname();
+            auto password = login_packet.password();
+            auto salt     = getSalt();
+            password += salt;
+            SHA1 checksum;
+            checksum.update(password);
+
+            auto hashed_password = checksum.final();
+            if (m_database->addUser(nickname, hashed_password, salt)) {
+                if (!sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_REGISTRATION_OK, sender_fd))
+                    std::cerr << err_msg;
+            }
+        } 
+    }
+
     if (packet.type() != NetworkUtils::Packet::Type::SERVER) {
+        std::cout << "Packet size: " << packet.size() << '\n';
+        std::cout << "Packet type: " << packet.type() << '\n';
+        std::cout << "Packet data: " << packet.asChars() << '\n';
         for (const auto &clients : m_pollfds) {
             if (clients.fd != m_listen_fd && clients.fd != sender_fd) {
                 NetworkUtils::Packet send_packet(std::move(packet));
                 send_packet.send(clients.fd);
             }        
         }
+    }
+}
+
+
+namespace {
+    std::string getSalt()
+    {
+        auto time          = std::chrono::system_clock::now();  
+        auto s_time        = std::chrono::system_clock::to_time_t(time);
+        auto time_str      = std::ctime(&s_time);
+        return time_str;
+    }
+
+    bool sendNotificationPacket(const NetworkUtils::Packet::Type type, const int sender_fd)
+    {
+        auto message            = NetworkUtils::Packet::messages[type]; 
+        auto message_as_bytes   = reinterpret_cast<std::byte*>(const_cast<char*>(message));
+        auto packet_data        = std::vector<std::byte>(message_as_bytes, message_as_bytes + strlen(message) + 1);
+
+        NetworkUtils::Packet packet(packet_data, type); 
+        return packet.send(sender_fd); 
     }
 }

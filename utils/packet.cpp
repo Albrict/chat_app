@@ -53,3 +53,48 @@ bool Packet::send(const int connection_fd)
     }
     return true;
 }
+
+
+NetworkUtils::LoginPacket::LoginPacket(std::string &nickname, std::string &password)
+{
+    const std::string nickname_sym = "/N/";
+    const std::string password_sym = "/P/";
+    
+    nickname.insert(0, nickname_sym);
+    password.insert(0, password_sym);
+    auto message = nickname + password;
+    const auto message_as_bytes  = reinterpret_cast<std::byte*>(message.data());
+    const auto packet_data = std::vector<std::byte>(message_as_bytes, message_as_bytes + message.size() + 1);
+    m_packet = std::make_unique<Packet>(packet_data, Packet::Type::SERVER_REGISTRATION);
+}
+
+NetworkUtils::LoginPacket::LoginPacket(const Packet &packet)
+{
+    std::string data    = packet.asChars();
+    bool meta_data      = false;
+    bool nickname_found = false;
+    bool password_found = false;
+
+    for (auto &ch : data) {
+        if (nickname_found && ch != '/')
+            m_nickname.push_back(ch); 
+        if (password_found && ch != '/')
+            m_password.push_back(ch);
+
+        if (meta_data) {
+            if (ch == 'N')
+                nickname_found = true; 
+            else if (ch == 'P')
+                password_found = true;
+        }
+        if (ch == '/') {
+            if (meta_data) {
+                meta_data = false;
+            } else {
+                meta_data = true; 
+                nickname_found = false;
+                password_found = false;
+            }
+        };
+    } 
+}
