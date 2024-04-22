@@ -98,9 +98,10 @@ Fl_Group *Chat::LoginWindow::createLoginGroup()
 
         auto login_button        = new Fl_Button(LoginButton::x, LoginButton::y, Widget::width, Widget::height, LoginButton::label);
         auto registration_button = new Fl_Button(SignUpButton::x, SignUpButton::y, Widget::width, Widget::height, SignUpButton::label);
-
+        
         m_info_box->labelcolor(FL_RED);
         m_info_box->hide();
+        login_button->callback(loginButtonCallback, this);
         registration_button->callback(signUpButtonCallback, this);
     }
     group->end();
@@ -130,21 +131,32 @@ Fl_Group *Chat::LoginWindow::createRegistrationGroup()
 }
 
 
+void Chat::LoginWindow::loginButtonCallback(Fl_Widget *widget, void *data)
+{
+    auto login_window    = static_cast<Chat::LoginWindow*>(data);
+    std::string nickname = login_window->m_nickname_field->value();
+    std::string password = login_window->m_password_field->value();
+    
+    if (!checkPasswordAndNicknameCorrectness(nickname, password, password, login_window->m_info_box)) {
+        login_window->m_info_box->show();
+        return;
+    }
+
+    NetworkUtils::LoginPacket packet(nickname, password, NetworkUtils::LoginPacket::Type::LOGIN);
+    bool result = packet.send(login_window->m_connection_fd);
+    if (!result) {
+        std::cerr << "Can't send message!\n";
+    }
+    if (login_window->m_info_box->visible())
+        login_window->m_info_box->hide();
+}
+
 void Chat::LoginWindow::signUpButtonCallback(Fl_Widget *widget, void *data)
 {
     auto login_window = static_cast<Chat::LoginWindow*>(data);
     Fl::delete_widget(login_window->m_current_group);
 
     login_window->m_current_group = login_window->createRegistrationGroup();
-    login_window->add(login_window->m_current_group);
-}
-
-void Chat::LoginWindow::backButtonCallback(Fl_Widget *widget, void *data)
-{
-    auto login_window = static_cast<Chat::LoginWindow*>(data);
-    Fl::delete_widget(login_window->m_current_group);
-
-    login_window->m_current_group = login_window->createLoginGroup();
     login_window->add(login_window->m_current_group);
 }
 
@@ -160,7 +172,7 @@ void Chat::LoginWindow::registerButtonCallback(Fl_Widget *widget, void *data)
         return;
     }
 
-    NetworkUtils::LoginPacket packet(nickname, password);
+    NetworkUtils::LoginPacket packet(nickname, password, NetworkUtils::LoginPacket::REGISTRATION);
     bool result  = packet.send(login_window->m_connection_fd);
     if (!result) {
         std::cerr << "Can't send message!\n";
@@ -168,6 +180,16 @@ void Chat::LoginWindow::registerButtonCallback(Fl_Widget *widget, void *data)
     if (login_window->m_info_box->visible())
         login_window->m_info_box->hide();
 }
+
+void Chat::LoginWindow::backButtonCallback(Fl_Widget *widget, void *data)
+{
+    auto login_window = static_cast<Chat::LoginWindow*>(data);
+    Fl::delete_widget(login_window->m_current_group);
+
+    login_window->m_current_group = login_window->createLoginGroup();
+    login_window->add(login_window->m_current_group);
+}
+
 
 namespace {
     bool checkPasswordAndNicknameCorrectness(const std::string &nickname, const std::string &password, const std::string &repeat_password, Fl_Box *error_display)
@@ -196,3 +218,4 @@ namespace {
         return true;
     }
 }
+

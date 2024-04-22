@@ -55,7 +55,7 @@ bool Packet::send(const int connection_fd)
 }
 
 
-NetworkUtils::LoginPacket::LoginPacket(std::string &nickname, std::string &password)
+NetworkUtils::LoginPacket::LoginPacket(std::string &nickname, std::string &password, const Type type)
 {
     const std::string nickname_sym = "/N/";
     const std::string password_sym = "/P/";
@@ -65,7 +65,7 @@ NetworkUtils::LoginPacket::LoginPacket(std::string &nickname, std::string &passw
     auto message = nickname + password;
     const auto message_as_bytes  = reinterpret_cast<std::byte*>(message.data());
     const auto packet_data = std::vector<std::byte>(message_as_bytes, message_as_bytes + message.size() + 1);
-    m_packet = std::make_unique<Packet>(packet_data, Packet::Type::SERVER_REGISTRATION);
+    m_packet = std::make_unique<Packet>(packet_data, type);
 }
 
 NetworkUtils::LoginPacket::LoginPacket(const Packet &packet)
