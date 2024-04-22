@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "client.hpp"
+#include "login_window.hpp"
 #include "options_window.hpp"
 #include "../utils/packet.hpp"
 #include "../utils/network_utils.hpp"
@@ -21,7 +22,6 @@
 using namespace Chat;
 
 namespace {
-     
     namespace Adjustments {
         constexpr int padding = 20;
     }
@@ -62,7 +62,6 @@ namespace {
 }
 
 Client::Client()
-    : m_window(Window::width, Window::height, Window::title)
 {
     const char *connection_error = "Can't connect to the server!\n";
     m_connect_fd = NetworkUtils::getConnectionSocket("shabaka-pc", "3490");
@@ -70,25 +69,23 @@ Client::Client()
         throw std::runtime_error(connection_error);
     
     Fl::add_fd(m_connect_fd, FL_READ, connectionReadEventCallback, this);
-    m_window.resizable(&m_window);
-    m_window.size_range(Window::width, Window::height);
+    m_current_window = std::make_unique<LoginWindow>(0, 0, m_connect_fd);
+    m_current_window->show();
+//    m_window.begin();
+//    {
+//        const int bar_height    = 20;
+//        auto      bar           = createMenuBar(MenuBar::x, MenuBar::y, MenuBar::width, MenuBar::height);
+//        auto      button        = createSendMessageButton(SendButton::x, SendButton::y, SendButton::width, SendButton::height);
+//        
+//        m_buffer                = std::make_unique<Fl_Text_Buffer>();
+//        m_message_output        = new Fl_Text_Display(MessageOutput::x, MessageOutput::y, MessageOutput::width, MessageOutput::height);
+//        m_message_input         = createMessageInput(MessageInput::x, MessageInput::y, MessageInput::width, MessageInput::height);
+//
+//        m_message_output->buffer(m_buffer.get());
+//    }
 
-    m_window.begin();
-    {
-        const int bar_height    = 20;
-        auto      bar           = createMenuBar(MenuBar::x, MenuBar::y, MenuBar::width, MenuBar::height);
-        auto      button        = createSendMessageButton(SendButton::x, SendButton::y, SendButton::width, SendButton::height);
-        auto      buffer        = new Fl_Text_Buffer;
-
-        m_message_output        = new Fl_Text_Display(MessageOutput::x, MessageOutput::y, MessageOutput::width, MessageOutput::height);
-        m_message_input         = createMessageInput(MessageInput::x, MessageInput::y, MessageInput::width, MessageInput::height);
-        m_output_buffer         = std::make_unique<std::vector<string_ptr>>();
-
-        m_message_output->buffer(buffer);
-    }
-
-    m_window.end();
-    m_window.show();
+//    m_window.end();
+//    m_window.show();
 }
 
 Client::~Client()
@@ -108,11 +105,11 @@ void Client::connectionReadEventCallback(FL_SOCKET fd, void *data)
         ;
     } else {
         auto client         = static_cast<Client*>(data);
-        auto message_output = client->m_message_output;
-        auto message        = std::make_unique<std::string>(packet.asString());
-        message->append("\n");
-        message_output->insert(message->c_str());
-        client->m_output_buffer->emplace_back(std::move(message));
+//        auto message_output = client->m_message_output;
+        auto message        = packet.asString();
+        message.append("\n");
+        std::cout << message;
+        //message_output->insert(message.c_str());
     }
 }
 
@@ -141,11 +138,6 @@ Fl_Button *Client::createSendMessageButton(const int x, const int y, const int w
     return button;
 }
 
-Fl_Text_Display *Client::createMessageDisplay(const int x, const int y, const int width, const int height)
-{
-    
-}
-
 void Client::settingsButtonCallback(Fl_Widget *widget, void *data)
 {
     auto client = static_cast<Client*>(data);
@@ -171,6 +163,20 @@ void Client::sendMessageCallback(Fl_Widget *widget, void *data)
     auto message            = client->m_message_input->value();
     auto message_as_bytes   = reinterpret_cast<std::byte*>(const_cast<char*>(message));
     auto packet_data        = std::vector<std::byte>(message_as_bytes, message_as_bytes + strlen(message) + 1);
+    NetworkUtils::Packet packet(packet_data, 4);
+    bool result  = packet.send(client->m_connect_fd); 
+    if (!result) {
+        std::cerr << "Can't send message!\n";
+    }
+}
+
+void Client::registrationCallback(Fl_Widget *widget, void *data)
+{
+    auto client             = static_cast<Client*>(data);
+    auto message            = client->m_message_input->value();
+    auto message_as_bytes   = reinterpret_cast<std::byte*>(const_cast<char*>(message));
+    auto packet_data        = std::vector<std::byte>(message_as_bytes, message_as_bytes + strlen(message) + 1);
+
     NetworkUtils::Packet packet(packet_data, 4);
     bool result  = packet.send(client->m_connect_fd); 
     if (!result) {
