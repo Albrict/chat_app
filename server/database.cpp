@@ -2,6 +2,7 @@
 #include <iostream>
 #include <stdexcept>
 #include "database.hpp"
+#include "sha.hpp"
 #include "sqlite3.h"
 
 namespace {
@@ -29,12 +30,12 @@ Chat::Database::~Database()
     sqlite3_close(m_connection);
 }
 
-bool Chat::Database::isUserExists(const char *nickname)
+bool Chat::Database::isUserExists(const std::string &nickname)
 {
     bool result = false;
     std::string sql = "SELECT nickname FROM users WHERE nickname='";
     sql += nickname;
-    sql.push_back('\'');
+    sql.append("\';");
 
     auto callback = +[](void *result, int count, char **data, char **columns) -> int {
         if (count > 0) {
@@ -64,6 +65,40 @@ bool Chat::Database::addUser(std::string &nickname, std::string &password, std::
     sql += nickname + password + salt;
     const int result = sqlite3_exec(m_connection, sql.c_str(), nullptr, nullptr, nullptr);
     return checkSQLresult(result);
+}
+
+bool Chat::Database::loginUser(const std::string &nickname, const std::string &password)
+{
+    std::string sql = "SELECT password, salt FROM users WHERE nickname='";
+    std::string hashed_password = password;
+    sql += nickname;
+    sql.append("\';");
+
+    auto callback = +[](void *password, int count, char **data, char **columns) -> int {
+        SHA1 hash;
+        auto salt= data[1];
+        auto pass = static_cast<std::string*>(password);
+        *pass += salt;
+
+        hash.update(*pass);
+        if (data[0] == hash.final()) {
+            std::cout << "User log in!\n";
+            return 0; 
+        } else {
+            std::cout << "User invalid password!\n";
+            pass->clear();
+            return 1;
+        }
+    };
+
+    const int success = sqlite3_exec(m_connection, sql.c_str(), callback, &hashed_password, nullptr);
+    if (success != SQLITE_OK)
+        std::cerr << sqlite3_errstr(success) << '\n';
+
+    if (hashed_password.empty())
+        return false;
+    else
+        return true;;
 }
 
 namespace {

@@ -12,18 +12,26 @@ namespace NetworkUtils {
             SERVER_REGISTRATION,
             SERVER_REGISTRATION_BAD,
             SERVER_REGISTRATION_ALREADY_EXISTS,
+            SERVER_LOGIN,
+            SERVER_USER_DONT_EXISTS,
+            SERVER_LOGIN_BAD,
+            SERVER_LOGIN_OK,
             SERVER_REGISTRATION_OK,
             _ALL_MESSAGES
         };
 
         static constexpr std::size_t packet_header_size   = sizeof(uint32_t) * 2;
         static constexpr std::size_t packet_header_stride = sizeof(uint32_t);
-        static constexpr const std::array<const char*, _ALL_MESSAGES> messages = {
+        static constexpr std::array<const char*, _ALL_MESSAGES> messages = {
             "",
             "Server message",
             "Server: registration",
             "Server: registration invalid",
             "Server: user already exists",
+            "Server: login",
+            "Server: user don't exists",
+            "Server: login BAD",
+            "Server: login OK",
             "Server: registration OK"
         };
         
@@ -86,7 +94,12 @@ namespace NetworkUtils {
 
     class LoginPacket final {
     public:
-        explicit LoginPacket(std::string &nickname, std::string &password);
+        enum Type : uint32_t {
+            LOGIN        = Packet::Type::SERVER_LOGIN,
+            REGISTRATION = Packet::Type::SERVER_REGISTRATION
+        };
+
+        explicit LoginPacket(std::string &nickname, std::string &password, const Type type);
         explicit LoginPacket(const Packet &packet);
         
         const Packet *getPacket() const noexcept

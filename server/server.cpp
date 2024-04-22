@@ -20,7 +20,6 @@
 namespace {
     [[nodiscard]] std::string getSalt();
     [[nodiscard]] bool sendNotificationPacket(const NetworkUtils::Packet::Type type, const int sender_fd);
-
 }
 
 using namespace Chat;
@@ -109,27 +108,18 @@ bool Server::handleConnectionRequest()
 
 void Server::handlePacket(const NetworkUtils::Packet &packet, const int sender_fd)
 {
-    if (packet.type() == NetworkUtils::Packet::Type::SERVER_REGISTRATION) {
-        const char *err_msg = "Can't send a notification to client!\n";
-        NetworkUtils::LoginPacket login_packet(packet);
-
-        if (m_database->isUserExists(login_packet.nickname().c_str())) {
-            if (!sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_REGISTRATION_ALREADY_EXISTS, sender_fd))
-                std::cerr << err_msg;
-        } else { 
-            auto nickname = login_packet.nickname();
-            auto password = login_packet.password();
-            auto salt     = getSalt();
-            password += salt;
-            SHA1 checksum;
-            checksum.update(password);
-
-            auto hashed_password = checksum.final();
-            if (m_database->addUser(nickname, hashed_password, salt)) {
-                if (!sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_REGISTRATION_OK, sender_fd))
-                    std::cerr << err_msg;
-            }
-        } 
+    switch(packet.type()) {
+    using enum NetworkUtils::Packet::Type; 
+    case SERVER:
+        break;
+    case SERVER_LOGIN:
+        loginUser(packet, sender_fd);
+        break;
+    case SERVER_REGISTRATION:
+        registerUser(packet, sender_fd);
+        break;
+    default:
+        break;
     }
 
     if (packet.type() != NetworkUtils::Packet::Type::SERVER) {
@@ -145,6 +135,43 @@ void Server::handlePacket(const NetworkUtils::Packet &packet, const int sender_f
     }
 }
 
+void Chat::Server::registerUser(const NetworkUtils::Packet &packet, const int sender_fd)
+{
+    const char *err_msg = "Can't send a notification to client!\n";
+    NetworkUtils::LoginPacket login_packet(packet);
+
+    if (m_database->isUserExists(login_packet.nickname().c_str())) {
+        if (!sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_REGISTRATION_ALREADY_EXISTS, sender_fd))
+            std::cerr << err_msg;
+    } else { 
+        auto nickname = login_packet.nickname();
+        auto password = login_packet.password();
+        auto salt     = getSalt();
+        password += salt;
+        SHA1 checksum;
+        checksum.update(password);
+
+        auto hashed_password = checksum.final();
+        if (m_database->addUser(nickname, hashed_password, salt)) {
+            if (!sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_REGISTRATION_OK, sender_fd))
+                std::cerr << err_msg;
+        }
+    }
+}
+
+void Chat::Server::loginUser(const NetworkUtils::Packet &packet, const int sender_fd)
+{
+    const char *err_msg = "Can't send a notification to client!\n";
+    NetworkUtils::LoginPacket login_packet(packet);
+
+    if (!m_database->isUserExists(login_packet.nickname().c_str())) {
+        if (!sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_USER_DONT_EXISTS, sender_fd))
+            std::cerr << err_msg;
+    } else {
+       if (!m_database->loginUser(login_packet.nickname(), login_packet.password()))
+           std::cerr << "Can't login user!\n"; 
+    }
+}
 
 namespace {
     std::string getSalt()

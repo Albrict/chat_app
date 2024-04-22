@@ -14,7 +14,8 @@ namespace Chat {
     private:
         [[nodiscard]] Fl_Group *createLoginGroup();
         [[nodiscard]] Fl_Group *createRegistrationGroup();
-
+    
+        static void loginButtonCallback(Fl_Widget *widget, void *data);
         static void signUpButtonCallback(Fl_Widget *widget, void *data);
         static void backButtonCallback(Fl_Widget *widget, void *data);
         static void registerButtonCallback(Fl_Widget *widget, void *data);
