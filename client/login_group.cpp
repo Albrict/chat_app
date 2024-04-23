@@ -1,4 +1,4 @@
-#include "login_window.hpp"
+#include "login_group.hpp"
 #include <FL/Fl_Button.H>
 #include <FL/Fl_Double_Window.H>
 #include <FL/Fl_Secret_Input.H>
@@ -76,8 +76,8 @@ namespace {
     [[nodiscard]] bool checkPasswordAndNicknameCorrectness(const std::string &nickname, const std::string &password, const std::string &repeat_password, Fl_Box *error_display);
 }
 
-Chat::LoginWindow::LoginWindow(const int x, const int y, const int connection_fd)
-    : Fl_Double_Window(x, y, Window::width, Window::height, Window::label),
+Chat::LoginGroup::LoginGroup(const int x, const int y, const int connection_fd)
+    : Fl_Group(x, y, Window::width, Window::height, Window::label),
     m_connection_fd(connection_fd)
 {
     Fl_Group::begin();
@@ -87,7 +87,7 @@ Chat::LoginWindow::LoginWindow(const int x, const int y, const int connection_fd
     Fl_Group::end();
 }
 
-Fl_Group *Chat::LoginWindow::createLoginGroup()
+Fl_Group *Chat::LoginGroup::createLoginGroup()
 {
     auto group = new Fl_Group(0, 0, Window::width, Window::height);
     group->begin();
@@ -108,7 +108,7 @@ Fl_Group *Chat::LoginWindow::createLoginGroup()
     return group;
 }
 
-Fl_Group *Chat::LoginWindow::createRegistrationGroup()
+Fl_Group *Chat::LoginGroup::createRegistrationGroup()
 {
     auto group = new Fl_Group(0, 0, Window::width, Window::height);
     group->begin();
@@ -131,9 +131,9 @@ Fl_Group *Chat::LoginWindow::createRegistrationGroup()
 }
 
 
-void Chat::LoginWindow::loginButtonCallback(Fl_Widget *widget, void *data)
+void Chat::LoginGroup::loginButtonCallback(Fl_Widget *widget, void *data)
 {
-    auto login_window    = static_cast<Chat::LoginWindow*>(data);
+    auto login_window    = static_cast<Chat::LoginGroup*>(data);
     std::string nickname = login_window->m_nickname_field->value();
     std::string password = login_window->m_password_field->value();
     
@@ -151,21 +151,21 @@ void Chat::LoginWindow::loginButtonCallback(Fl_Widget *widget, void *data)
         login_window->m_info_box->hide();
 }
 
-void Chat::LoginWindow::signUpButtonCallback(Fl_Widget *widget, void *data)
+void Chat::LoginGroup::signUpButtonCallback(Fl_Widget *widget, void *data)
 {
-    auto login_window = static_cast<Chat::LoginWindow*>(data);
+    auto login_window = static_cast<Chat::LoginGroup*>(data);
     Fl::delete_widget(login_window->m_current_group);
 
     login_window->m_current_group = login_window->createRegistrationGroup();
     login_window->add(login_window->m_current_group);
 }
 
-void Chat::LoginWindow::registerButtonCallback(Fl_Widget *widget, void *data)
+void Chat::LoginGroup::registerButtonCallback(Fl_Widget *widget, void *data)
 {
-    auto login_window       = static_cast<LoginWindow*>(data);
-    std::string nickname    = login_window->m_nickname_field->value();
-    std::string password    = login_window->m_password_field->value();
-    std::string repeat_pass = login_window->m_repeat_password_field->value(); 
+    auto login_window        = static_cast<LoginGroup*>(data);
+    std::string nickname     = login_window->m_nickname_field->value();
+    std::string password     = login_window->m_password_field->value();
+    std::string repeat_pass  = login_window->m_repeat_password_field->value(); 
     
     if (!checkPasswordAndNicknameCorrectness(nickname, password, repeat_pass, login_window->m_info_box)) {
         login_window->m_info_box->show();
@@ -173,7 +173,7 @@ void Chat::LoginWindow::registerButtonCallback(Fl_Widget *widget, void *data)
     }
 
     NetworkUtils::LoginPacket packet(nickname, password, NetworkUtils::LoginPacket::REGISTRATION);
-    bool result  = packet.send(login_window->m_connection_fd);
+    bool result = packet.send(login_window->m_connection_fd);
     if (!result) {
         std::cerr << "Can't send message!\n";
     }
@@ -181,15 +181,20 @@ void Chat::LoginWindow::registerButtonCallback(Fl_Widget *widget, void *data)
         login_window->m_info_box->hide();
 }
 
-void Chat::LoginWindow::backButtonCallback(Fl_Widget *widget, void *data)
+void Chat::LoginGroup::backButtonCallback(Fl_Widget *widget, void *data)
 {
-    auto login_window = static_cast<Chat::LoginWindow*>(data);
+    auto login_window = static_cast<Chat::LoginGroup*>(data);
     Fl::delete_widget(login_window->m_current_group);
 
     login_window->m_current_group = login_window->createLoginGroup();
     login_window->add(login_window->m_current_group);
 }
 
+
+const std::string Chat::LoginGroup::nickname() const noexcept
+{
+    return m_nickname_field->value();
+}
 
 namespace {
     bool checkPasswordAndNicknameCorrectness(const std::string &nickname, const std::string &password, const std::string &repeat_password, Fl_Box *error_display)

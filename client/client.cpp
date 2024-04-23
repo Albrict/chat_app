@@ -5,87 +5,34 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#include <FL/Fl_Menu_Bar.H>
-#include <FL/Fl_Button.H>
-#include <FL/Fl_Multiline_Input.H>
-#include <FL/Fl_Text_Display.H>
-
+#include <FL/Fl_Group.H>
 #include <stdexcept>
-#include <vector>
 
 #include "client.hpp"
-#include "login_window.hpp"
-#include "options_window.hpp"
+#include "chat_group.hpp"
+#include "login_group.hpp"
 #include "../utils/packet.hpp"
 #include "../utils/network_utils.hpp"
 
 using namespace Chat;
 
 namespace {
-    namespace Adjustments {
-        constexpr int padding = 20;
-    }
-
-    namespace Window {
-        const char    *title = "Chat client";
-        constexpr int width  = 512;
-        constexpr int height = 320; 
-    }
-
-    namespace MenuBar {
-        constexpr int x      = 0;
-        constexpr int y      = 0;
-        constexpr int width  = Window::width; 
-        constexpr int height = 20;
-    };
-    
-    namespace SendButton {
-        constexpr int height = 40;
-        constexpr int x      = Window::width / 1.5;
-        constexpr int y      = Window::height - height; 
-        constexpr int width  = Window::width - x;
-    }
-
-    namespace MessageInput {
-        constexpr int height = 40;
-        constexpr int x      = 0;
-        constexpr int y      = Window::height - height;
-        constexpr int width  = Window::width - SendButton::width; 
-    }
-
-    namespace MessageOutput {
-        constexpr int width  = Window::width - 20;
-        constexpr int height = SendButton::y - MenuBar::height;
-        constexpr int x      = 10;
-        constexpr int y      = MenuBar::height;
-    }
+    Fl_Group *createChatGroup(const int x, const int y, const int m_connect_fd);
 }
 
 Client::Client()
+    : m_window(100, 100)
 {
+
     const char *connection_error = "Can't connect to the server!\n";
     m_connect_fd = NetworkUtils::getConnectionSocket("shabaka-pc", "3490");
     if (m_connect_fd < 0)
         throw std::runtime_error(connection_error);
-    
+     
     Fl::add_fd(m_connect_fd, FL_READ, connectionReadEventCallback, this);
-    m_current_window = std::make_unique<LoginWindow>(0, 0, m_connect_fd);
-    m_current_window->show();
-//    m_window.begin();
-//    {
-//        const int bar_height    = 20;
-//        auto      bar           = createMenuBar(MenuBar::x, MenuBar::y, MenuBar::width, MenuBar::height);
-//        auto      button        = createSendMessageButton(SendButton::x, SendButton::y, SendButton::width, SendButton::height);
-//        
-//        m_buffer                = std::make_unique<Fl_Text_Buffer>();
-//        m_message_output        = new Fl_Text_Display(MessageOutput::x, MessageOutput::y, MessageOutput::width, MessageOutput::height);
-//        m_message_input         = createMessageInput(MessageInput::x, MessageInput::y, MessageInput::width, MessageInput::height);
-//
-//        m_message_output->buffer(m_buffer.get());
-//    }
-
-//    m_window.end();
-//    m_window.show();
+    startLogin();
+    m_window.show();
+    m_window.position(Fl::w() / 2, Fl::h() / 2);
 }
 
 Client::~Client()
@@ -104,82 +51,71 @@ void Client::connectionReadEventCallback(FL_SOCKET fd, void *data)
     if (packet.isEmpty()) {
         ;
     } else {
-        auto client         = static_cast<Client*>(data);
-//        auto message_output = client->m_message_output;
-        auto message        = packet.asString();
+        auto client = static_cast<Client*>(data);
+        switch(packet.type()) {
+        using enum NetworkUtils::Packet::Type; 
+        case SERVER_LOGIN_OK:
+        case SERVER_REGISTRATION_OK:
+            client->startChat();
+            break;
+        case _MESSAGE:
+            if (client->m_chat)
+                client->m_chat->displayMessage(NetworkUtils::MessagePacket(packet));
+        default:
+            break;
+        }
+        auto message = packet.asString();
         message.append("\n");
         std::cout << message;
-        //message_output->insert(message.c_str());
     }
 }
 
-Fl_Menu_Bar *Client::createMenuBar(const int x, const int y, const int width, const int height)
+void Client::startChat()
 {
-    Fl_Menu_Item popup[] = {
-        {"&Settings",    FL_ALT+'a', settingsButtonCallback, this},
-        {0}
-    };
-    Fl_Menu_Bar *bar = new Fl_Menu_Bar(x, y, width, height);
-    bar->copy(popup);
-    return bar;
+    m_chat = new ChatGroup(0, 0, m_connect_fd, m_login->nickname());
+    m_window.remove(m_login);
+    m_window.add(m_chat);
+    m_window.resize(m_window.x(), m_window.y(), m_chat->w(), m_chat->h());
+    m_window.redraw();
 }
 
-Fl_Multiline_Input *Client::createMessageInput(const int x, const int y, const int width, const int height)
+void Client::startLogin()
 {
-    auto input = new Fl_Multiline_Input(x, y, width, height); 
-    return input;
+    m_login = new LoginGroup(0, 0, m_connect_fd);
+    m_window.add(m_login);
+    m_window.resize(m_login->x(), m_login->y(), m_login->w(), m_login->h());
 }
 
-Fl_Button *Client::createSendMessageButton(const int x, const int y, const int width, const int height)
-{
-    const char *button_label = "Send message";
-    auto button = new Fl_Button(x, y, width, height, button_label); 
-    button->callback(sendMessageCallback, this);
-    return button;
-}
-
-void Client::settingsButtonCallback(Fl_Widget *widget, void *data)
-{
-    auto client = static_cast<Client*>(data);
-    if (!client->m_options_window) {
-        const     int win_width  = 400;
-        const     int win_height = 300;
-        constexpr int win_x      = 1024 / 2;
-        constexpr int win_y      = 768  / 2;
-
-        client->m_options_window = std::make_unique<OptionsWindow>(win_x, win_y, win_width, win_height, "Settings");
-        client->m_options_window->show();
-    } else {
-        if (client->m_options_window->visible() == 0) // Window is visible
-            client->m_options_window->show();
-        else 
-            client->m_options_window->hide();
-    }
-}
-
-void Client::sendMessageCallback(Fl_Widget *widget, void *data)
-{
-    auto client             = static_cast<Client*>(data);
-    auto message            = client->m_message_input->value();
-    auto message_as_bytes   = reinterpret_cast<std::byte*>(const_cast<char*>(message));
-    auto packet_data        = std::vector<std::byte>(message_as_bytes, message_as_bytes + strlen(message) + 1);
-    NetworkUtils::Packet packet(packet_data, 4);
-    bool result  = packet.send(client->m_connect_fd); 
-    if (!result) {
-        std::cerr << "Can't send message!\n";
-    }
-}
-
-void Client::registrationCallback(Fl_Widget *widget, void *data)
-{
-    auto client             = static_cast<Client*>(data);
-    auto message            = client->m_message_input->value();
-    auto message_as_bytes   = reinterpret_cast<std::byte*>(const_cast<char*>(message));
-    auto packet_data        = std::vector<std::byte>(message_as_bytes, message_as_bytes + strlen(message) + 1);
-
-    NetworkUtils::Packet packet(packet_data, 4);
-    bool result  = packet.send(client->m_connect_fd); 
-    if (!result) {
-        std::cerr << "Can't send message!\n";
-    }
-}
+//void Client::settingsButtonCallback(Fl_Widget *widget, void *data)
+//{
+//    auto client = static_cast<Client*>(data);
+//    if (!client->m_options_window) {
+//        const     int win_width  = 400;
+//        const     int win_height = 300;
+//        constexpr int win_x      = 1024 / 2;
+//        constexpr int win_y      = 768  / 2;
+//
+//        client->m_options_window = std::make_unique<OptionsWindow>(win_x, win_y, win_width, win_height, "Settings");
+//        client->m_options_window->show();
+//    } else {
+//        if (client->m_options_window->visible() == 0) // Window is visible
+//            client->m_options_window->show();
+//        else 
+//            client->m_options_window->hide();
+//    }
+//}
+//
+//
+//void Client::registrationCallback(Fl_Widget *widget, void *data)
+//{
+//    auto client             = static_cast<Client*>(data);
+//    auto message            = client->m_message_input->value();
+//    auto message_as_bytes   = reinterpret_cast<std::byte*>(const_cast<char*>(message));
+//    auto packet_data        = std::vector<std::byte>(message_as_bytes, message_as_bytes + strlen(message) + 1);
+//
+//    NetworkUtils::Packet packet(packet_data, 4);
+//    bool result  = packet.send(client->m_connect_fd); 
+//    if (!result) {
+//        std::cerr << "Can't send message!\n";
+//    }
+//}

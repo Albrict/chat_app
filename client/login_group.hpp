@@ -1,5 +1,6 @@
 #pragma once
-#include <FL/Fl_Double_Window.H>
+#include <FL/Fl_Group.H>
+#include <string>
 
 class Fl_Input;
 class Fl_Secret_Input;
@@ -7,10 +8,12 @@ class Fl_Group;
 class Fl_Box;
 
 namespace Chat {
-    class LoginWindow final : public Fl_Double_Window {
+    class LoginGroup final : public Fl_Group {
     public:
-        LoginWindow(const int x, const int y, const int connection_fd);
-        ~LoginWindow() = default;
+        LoginGroup(const int x, const int y, const int connection_fd);
+        ~LoginGroup() = default;
+
+        const std::string nickname() const noexcept;
     private:
         [[nodiscard]] Fl_Group *createLoginGroup();
         [[nodiscard]] Fl_Group *createRegistrationGroup();
