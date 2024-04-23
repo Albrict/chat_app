@@ -17,7 +17,8 @@ namespace NetworkUtils {
             SERVER_LOGIN_BAD,
             SERVER_LOGIN_OK,
             SERVER_REGISTRATION_OK,
-            _ALL_MESSAGES
+            _ALL_MESSAGES,
+            _MESSAGE
         };
 
         static constexpr std::size_t packet_header_size   = sizeof(uint32_t) * 2;
@@ -64,7 +65,9 @@ namespace NetworkUtils {
         
         [[nodiscard]] const std::byte &operator[](const std::size_t i) const noexcept
         { return m_buffer[i]; }
-
+        
+        [[nodiscard]] const std::byte *rawData() const noexcept
+        { return m_buffer.data(); }
         [[nodiscard]] const std::byte *asBytes() const noexcept
         { return m_buffer.data() + packet_header_size; }
         
@@ -123,5 +126,34 @@ namespace NetworkUtils {
         std::unique_ptr<Packet> m_packet   {};
         std::string             m_nickname {}; 
         std::string             m_password {};
+        std::string             m_message  {};
+    };
+
+    class MessagePacket final {
+    public:
+        explicit MessagePacket(std::string from, std::string message);
+        explicit MessagePacket(const Packet &packet);
+        
+        const Packet *getPacket() const noexcept
+        { return m_packet.get(); }
+        
+        bool send(const int connection_fd)
+        { return m_packet->send(connection_fd); }
+        
+        const std::string &getSender() const noexcept
+        { return m_from; }
+        
+        std::string &getSender() noexcept
+        { return m_from; }
+
+        const std::string &getMessage() const noexcept
+        { return m_message; }
+
+        std::string &getMessage() noexcept
+        { return m_message; }
+    private:
+        std::unique_ptr<Packet> m_packet   {};
+        std::string             m_message  {}; 
+        std::string             m_from     {};
     };
 }

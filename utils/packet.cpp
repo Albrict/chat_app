@@ -59,7 +59,7 @@ NetworkUtils::LoginPacket::LoginPacket(std::string &nickname, std::string &passw
 {
     const std::string nickname_sym = "/N/";
     const std::string password_sym = "/P/";
-    
+    const std::string text_sym     = "/T/"; 
     nickname.insert(0, nickname_sym);
     password.insert(0, password_sym);
     auto message = nickname + password;
@@ -74,18 +74,25 @@ NetworkUtils::LoginPacket::LoginPacket(const Packet &packet)
     bool meta_data      = false;
     bool nickname_found = false;
     bool password_found = false;
-
+    bool text_found     = false;
     for (auto &ch : data) {
         if (nickname_found && ch != '/')
             m_nickname.push_back(ch); 
         if (password_found && ch != '/')
             m_password.push_back(ch);
-
+        
         if (meta_data) {
-            if (ch == 'N')
+            switch(ch) {
+            case 'N':
                 nickname_found = true; 
-            else if (ch == 'P')
+                break;
+            case 'P':
                 password_found = true;
+                break;
+            case 'T':
+                text_found = true;
+                break;
+            }
         }
         if (ch == '/') {
             if (meta_data) {
@@ -97,4 +104,54 @@ NetworkUtils::LoginPacket::LoginPacket(const Packet &packet)
             }
         };
     } 
+}
+
+NetworkUtils::MessagePacket::MessagePacket(std::string from, std::string message)
+{
+    const std::string nickname_sym = "/N/";
+    const std::string text_sym     = "/T/"; 
+    from.insert(0, nickname_sym);
+    message.insert(0, text_sym);
+    auto full_message = from + message;
+    const auto message_as_bytes  = reinterpret_cast<std::byte*>(full_message.data());
+    const auto packet_data = std::vector<std::byte>(message_as_bytes, message_as_bytes + full_message.size() + 1);
+    m_packet = std::make_unique<Packet>(packet_data, Packet::Type::_MESSAGE);
+}
+
+NetworkUtils::MessagePacket::MessagePacket(const Packet &packet)
+{
+    std::string data    = packet.asChars();
+    bool meta_data      = false;
+    bool nickname_found = false;
+    bool text_found     = false;
+    for (const auto &ch : data) {
+        if (ch == '/') {
+            if (meta_data) {
+                meta_data = false;
+            } else {
+                meta_data      = true; 
+                nickname_found = false;
+                text_found     = false;
+            }
+            continue;
+        }
+
+        if (nickname_found && ch != '/') {
+            m_from.push_back(ch); 
+        } else if (text_found) {
+            m_message.push_back(ch);
+            continue;
+        }
+
+        if (meta_data) {
+            switch(ch) {
+            case 'N':
+                nickname_found = true; 
+                break;
+            case 'T':
+                text_found = true;
+                break;
+            }
+        }
+    }
 }

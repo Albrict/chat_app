@@ -19,7 +19,7 @@
 
 namespace {
     [[nodiscard]] std::string getSalt();
-    [[nodiscard]] bool sendNotificationPacket(const NetworkUtils::Packet::Type type, const int sender_fd);
+    bool sendNotificationPacket(const NetworkUtils::Packet::Type type, const int sender_fd);
 }
 
 using namespace Chat;
@@ -118,20 +118,11 @@ void Server::handlePacket(const NetworkUtils::Packet &packet, const int sender_f
     case SERVER_REGISTRATION:
         registerUser(packet, sender_fd);
         break;
+    case _MESSAGE:
+        receiveMessage(packet, sender_fd);
+        break;
     default:
         break;
-    }
-
-    if (packet.type() != NetworkUtils::Packet::Type::SERVER) {
-        std::cout << "Packet size: " << packet.size() << '\n';
-        std::cout << "Packet type: " << packet.type() << '\n';
-        std::cout << "Packet data: " << packet.asChars() << '\n';
-        for (const auto &clients : m_pollfds) {
-            if (clients.fd != m_listen_fd && clients.fd != sender_fd) {
-                NetworkUtils::Packet send_packet(std::move(packet));
-                send_packet.send(clients.fd);
-            }        
-        }
     }
 }
 
@@ -163,13 +154,30 @@ void Chat::Server::loginUser(const NetworkUtils::Packet &packet, const int sende
 {
     const char *err_msg = "Can't send a notification to client!\n";
     NetworkUtils::LoginPacket login_packet(packet);
-
-    if (!m_database->isUserExists(login_packet.nickname().c_str())) {
-        if (!sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_USER_DONT_EXISTS, sender_fd))
-            std::cerr << err_msg;
+    
+    auto result = m_database->isUserExists(login_packet.nickname());
+    if (result) {
+        result = m_database->loginUser(login_packet.nickname(), login_packet.password());
+        if (result)
+            sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_LOGIN_OK, sender_fd);
+        else
+            sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_LOGIN_BAD, sender_fd);
     } else {
-       if (!m_database->loginUser(login_packet.nickname(), login_packet.password()))
-           std::cerr << "Can't login user!\n"; 
+        sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_USER_DONT_EXISTS, sender_fd);
+    }
+}
+
+void Chat::Server::receiveMessage(const NetworkUtils::Packet &packet, const int sender_fd)
+{
+    NetworkUtils::MessagePacket message_packet(packet);
+    std::cout << message_packet.getSender() << '\n';
+    std::cout << message_packet.getMessage() << '\n';
+
+    for (const auto &clients : m_pollfds) {
+        if (clients.fd != m_listen_fd && clients.fd != sender_fd) {
+            NetworkUtils::Packet send_packet(std::move(packet));
+            send_packet.send(clients.fd);
+        }        
     }
 }
 
@@ -187,7 +195,7 @@ namespace {
         auto message            = NetworkUtils::Packet::messages[type]; 
         auto message_as_bytes   = reinterpret_cast<std::byte*>(const_cast<char*>(message));
         auto packet_data        = std::vector<std::byte>(message_as_bytes, message_as_bytes + strlen(message) + 1);
-
+        
         NetworkUtils::Packet packet(packet_data, type); 
         return packet.send(sender_fd); 
     }

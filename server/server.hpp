@@ -21,6 +21,7 @@ namespace Chat {
         void handlePacket(const NetworkUtils::Packet &packet, const int sender_fd);
         void registerUser(const NetworkUtils::Packet &packet, const int sender_fd);
         void loginUser(const NetworkUtils::Packet &packet, const int sender_fd);
+        void receiveMessage(const NetworkUtils::Packet &packet, const int sender_fd);
     private:
         int                        m_listen_fd        {};
         int                        m_connection_fd    {};
