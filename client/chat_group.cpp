@@ -58,7 +58,7 @@ Chat::ChatGroup::ChatGroup(const int x, const int y, const int connection_fd, co
         m_buffer        = std::make_unique<Fl_Text_Buffer>();
         
         auto message_button = new Fl_Button(SendButton::x, SendButton::y, SendButton::width, SendButton::height, SendButton::label);
-        
+
         m_text_display->buffer(m_buffer.get());
         message_button->callback(sendMessageCallback, this);
     }
@@ -72,14 +72,14 @@ void Chat::ChatGroup::sendMessageCallback(Fl_Widget *widget, void *data)
     std::string from      = group->m_nickname;
 
     NetworkUtils::MessagePacket packet(from, message);
-    bool result  = packet.send(group->m_connect_fd); 
+    const bool result  = packet.send(group->m_connect_fd); 
     if (!result) {
         std::cerr << "Can't send message!\n";
     } else {
-        from.append(": ");
-        std::string display_message = from + message;
+        std::string display_message = "You: " + message;
         display_message.push_back('\n');
         group->m_text_display->insert(display_message.c_str());
+        group->m_message_input->value(""); 
     }
 }
 
@@ -91,6 +91,6 @@ void Chat::ChatGroup::displayMessage(const NetworkUtils::MessagePacket &packet)
     sender.append(": ");
     message.push_back('\n');
     
-    auto final_message = sender + message;
+    const auto final_message = sender + message;
     m_text_display->insert(final_message.c_str());
 }
