@@ -77,6 +77,7 @@ void Client::startChat()
     m_window.add(m_chat);
     m_window.resize(m_window.x(), m_window.y(), m_chat->w(), m_chat->h());
     m_window.redraw();
+    m_window.label(m_chat->label());
 }
 
 void Client::startLogin()
@@ -84,6 +85,7 @@ void Client::startLogin()
     m_login = new LoginGroup(0, 0, m_connect_fd);
     m_window.add(m_login);
     m_window.resize(m_login->x(), m_login->y(), m_login->w(), m_login->h());
+    m_window.label(m_login->label());
 }
 
 //void Client::settingsButtonCallback(Fl_Widget *widget, void *data)
