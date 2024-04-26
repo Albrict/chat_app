@@ -1,4 +1,6 @@
 #include "server.hpp"
+#include <boost/serialization/access.hpp>
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
 #include <stdio.h>
@@ -10,18 +12,27 @@
 #include <arpa/inet.h>
 #include <sys/wait.h>
 #include <string>
+#include <chrono>
 
 #include "../utils/network_utils.hpp"
+#include "sha.hpp"
+
+namespace {
+    [[nodiscard]] std::string getSalt();
+    bool sendNotificationPacket(const NetworkUtils::Packet::Type type, const int sender_fd);
+}
 
 using namespace Chat;
 
-Server::Server(const char *port)
+Server::Server(const char *port, std::unique_ptr<Database> database)
 {
+    m_database  = std::move(database);
     m_listen_fd = NetworkUtils::getListenSocket(port);
     if (m_listen_fd < 0) {
         const char *err = "Fatal error: can't get listen socket";
         throw std::runtime_error(err);
     }
+
     const int result = listen(m_listen_fd, SOMAXCONN); 
     if (result < 0) {
         const char *err = "listen";
@@ -29,7 +40,6 @@ Server::Server(const char *port)
         throw std::runtime_error(err);
     }
     m_address.resize(INET6_ADDRSTRLEN);
-    m_buffer.resize(256);
 }
 
 Server::~Server()
@@ -63,10 +73,12 @@ void Server::checkConnections()
             if (m_pollfds[i].fd == m_listen_fd) {
                 handleConnectionRequest();
             } else  {
-                auto data = handleDataFromClient(m_pollfds[i]); 
-                if (data == nullptr) {
+                NetworkUtils::Packet packet(m_pollfds[i].fd); 
+                if (packet.isEmpty()) {
                     close(m_pollfds[i].fd);
                     m_pollfds.erase(m_pollfds.begin() + i);
+                } else {
+                    handlePacket(packet, m_pollfds[i].fd);
                 }
             }
         } else { 
@@ -90,25 +102,101 @@ bool Server::handleConnectionRequest()
         m_pollfds.push_back(NetworkUtils::createPollfd(m_connection_fd, POLLIN));
         std::cout << connection_message;
         std::cout << m_address << '\n';
-        send(m_connection_fd, "Hello, world!", 13, 0);
         return true;
     }
 }
 
-const char *Server::handleDataFromClient(const pollfd &pollfd_connect)
+void Server::handlePacket(const NetworkUtils::Packet &packet, const int sender_fd)
 {
-    const int n_bytes   = recv(pollfd_connect.fd, m_buffer.data(), m_buffer.size(), 0); 
+    switch(packet.type()) {
+    using enum NetworkUtils::Packet::Type; 
+    case SERVER:
+        break;
+    case SERVER_LOGIN:
+        loginUser(packet, sender_fd);
+        break;
+    case SERVER_REGISTRATION:
+        registerUser(packet, sender_fd);
+        break;
+    case _MESSAGE:
+        receiveMessage(packet, sender_fd);
+        break;
+    default:
+        break;
+    }
+}
+
+void Chat::Server::registerUser(const NetworkUtils::Packet &packet, const int sender_fd)
+{
+    const char *err_msg = "Can't send a notification to client!\n";
+    NetworkUtils::LoginPacket login_packet(packet);
+
+    if (m_database->isUserExists(login_packet.nickname().c_str())) {
+        if (!sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_REGISTRATION_ALREADY_EXISTS, sender_fd))
+            std::cerr << err_msg;
+    } else { 
+        auto nickname = login_packet.nickname();
+        auto password = login_packet.password();
+        auto salt     = getSalt();
+        password += salt;
+        SHA1 checksum;
+        checksum.update(password);
+
+        auto hashed_password = checksum.final();
+        if (m_database->addUser(nickname, hashed_password, salt)) {
+            if (!sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_REGISTRATION_OK, sender_fd))
+                std::cerr << err_msg;
+        }
+    }
+}
+
+void Chat::Server::loginUser(const NetworkUtils::Packet &packet, const int sender_fd)
+{
+    const char *err_msg = "Can't send a notification to client!\n";
+    NetworkUtils::LoginPacket login_packet(packet);
     
-    if (n_bytes <= 0) {
-        // Got connection error or closed by client
-        if (n_bytes == 0)
-            printf("connection closed on socket:%d\n", pollfd_connect.fd);
-        else 
-            perror("recv");
-        return nullptr;
+    auto result = m_database->isUserExists(login_packet.nickname());
+    if (result) {
+        result = m_database->loginUser(login_packet.nickname(), login_packet.password());
+        if (result)
+            sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_LOGIN_OK, sender_fd);
+        else
+            sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_LOGIN_BAD, sender_fd);
     } else {
-        // Received some data
-        printf("Received data: %s\n", m_buffer.c_str());
-        return m_buffer.c_str();
+        sendNotificationPacket(NetworkUtils::Packet::Type::SERVER_USER_DONT_EXISTS, sender_fd);
+    }
+}
+
+void Chat::Server::receiveMessage(const NetworkUtils::Packet &packet, const int sender_fd)
+{
+    NetworkUtils::MessagePacket message_packet(packet);
+    std::cout << message_packet.getSender() << '\n';
+    std::cout << message_packet.getMessage() << '\n';
+
+    for (const auto &clients : m_pollfds) {
+        if (clients.fd != m_listen_fd && clients.fd != sender_fd) {
+            NetworkUtils::Packet send_packet(std::move(packet));
+            send_packet.send(clients.fd);
+        }        
+    }
+}
+
+namespace {
+    std::string getSalt()
+    {
+        auto time          = std::chrono::system_clock::now();  
+        auto s_time        = std::chrono::system_clock::to_time_t(time);
+        auto time_str      = std::ctime(&s_time);
+        return time_str;
+    }
+
+    bool sendNotificationPacket(const NetworkUtils::Packet::Type type, const int sender_fd)
+    {
+        auto message            = NetworkUtils::Packet::messages[type]; 
+        auto message_as_bytes   = reinterpret_cast<std::byte*>(const_cast<char*>(message));
+        auto packet_data        = std::vector<std::byte>(message_as_bytes, message_as_bytes + strlen(message) + 1);
+        
+        NetworkUtils::Packet packet(packet_data, type); 
+        return packet.send(sender_fd); 
     }
 }

@@ -5,7 +5,6 @@
 
 using namespace Chat;
 
-
 OptionsWindow::OptionsWindow(const int x, const int y, const int width, const int height, const char *title)
     : Fl_Double_Window(x, y, width, height, title)
 {

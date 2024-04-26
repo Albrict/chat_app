@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include <netdb.h>
 #include <sys/poll.h>
 
@@ -10,4 +11,6 @@ namespace NetworkUtils {
     {
         return (pollfd){ .fd = fd, .events = events }; 
     }
+    void serializeUnsignedInt(const unsigned int num, std::byte *buffer) noexcept;
+    [[nodiscard]] uint32_t deserializeUnsignedInt(const std::byte *data) noexcept;
 }

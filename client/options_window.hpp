@@ -11,9 +11,9 @@ namespace Chat {
         OptionsWindow(const int x, const int y, const int width, const int height, const char *title);
         ~OptionsWindow() = default;
     private:
-        Fl_Input  *host             = nullptr;
-        Fl_Input  *port             = nullptr;
-        Fl_Box    *connection_state = nullptr;
-        Fl_Button *save             = nullptr;
+        Fl_Input  *host             {};
+        Fl_Input  *port             {};
+        Fl_Box    *connection_state {};
+        Fl_Button *save             {};
     };
 }

@@ -1,6 +1,11 @@
 #include "network_utils.hpp"
+#include <cstddef>
+#include <cstdint>
 #include <iostream>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #include <unistd.h>
+#include <cstring>
 
 int NetworkUtils::getListenSocket(const char *port, const addrinfo *hints) noexcept
 {
@@ -116,4 +121,20 @@ void *NetworkUtils::get_in_addr(sockaddr *sa) noexcept
         return &reinterpret_cast<sockaddr_in*>(sa)->sin_addr;
     else
         return &reinterpret_cast<sockaddr_in6*>(sa)->sin6_addr;
+}
+
+
+void NetworkUtils::serializeUnsignedInt(const unsigned int num, std::byte *buffer) noexcept
+{
+    uint32_t   converted  = htonl(num); 
+    const auto byte_array = reinterpret_cast<std::byte*>(&converted);    
+    memcpy(buffer, byte_array, sizeof(uint32_t));
+}
+
+uint32_t NetworkUtils::deserializeUnsignedInt(const std::byte *data) noexcept
+{
+    uint32_t host_value = 0;
+    memcpy(&host_value, data, sizeof(host_value));
+    host_value = ntohl(host_value);
+    return host_value;  
 }
