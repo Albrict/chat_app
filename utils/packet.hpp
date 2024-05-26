@@ -39,26 +39,32 @@ namespace NetworkUtils {
         explicit Packet(const std::vector<std::byte> &buffer, const uint32_t type);
         explicit Packet(const int connect_fd);
         explicit Packet(const Packet &other)
-        {
-            m_buffer       = other.m_buffer; 
-            m_packet_size  = other.m_packet_size;
-            m_is_empty     = other.m_is_empty;
-        }
+        { *this = other; }
         
         Packet(Packet &&other) noexcept
-        {
-            m_buffer      = std::move(other.m_buffer);
-            m_is_empty    = other.m_is_empty;
-            m_packet_size = other.m_packet_size;
-        }
+        { *this = std::move(other); }
         
         ~Packet() = default;
 
         Packet &operator=(const Packet &rhs) 
-        { return *this = Packet(rhs); }
+        { 
+            if (this != &rhs) {
+                m_buffer      = rhs.m_buffer;
+                m_is_empty    = rhs.m_is_empty;
+                m_packet_size = rhs.m_packet_size;
+            }
+            return *this;
+        }
         
         Packet& operator=(Packet &&rhs) noexcept
-        { return *this = Packet(std::move(rhs)); }
+        { 
+            if (this != &rhs) {
+                m_buffer      = std::move(rhs.m_buffer);
+                m_is_empty    = rhs.m_is_empty;
+                m_packet_size = rhs.m_packet_size;
+            }
+            return *this;
+        }
 
         [[nodiscard]] std::byte &operator[](const std::size_t i) noexcept
         { return m_buffer[i]; }
