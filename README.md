@@ -8,3 +8,30 @@ To summarize what I learned and achieved:
 - SHA1 encyption
 - Learned how to encapsulate data to transmit it over a network
 
+# How to compile
+This program only compiles on Linux, because of use Unix sockets API. It can be ported tho using WINAPI sockets tho.
+
+First, clone this repo
+
+`git clone https://github.com/Albrict/chat_app.git`
+
+Then
+
+`cd chat_app && mkdir build`
+
+Setup cmake
+
+`cd build && cmake .. -DCMAKE_BUILD_TYPE=RELEASE`
+
+Compile
+
+`make`
+
+# How to run it 
+After compilation you will have two programs: the client and server. Run the server first
+
+`./server`
+
+After that you can launch client and use 3490 port to connect
+# Program demonstration
+https://github.com/Albrict/chat_app/assets/65279613/6050621c-33fa-41c4-bb75-49bbe47404b5
